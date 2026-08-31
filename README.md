@@ -2,6 +2,11 @@
 
 IoT- och embeddedprototyp för övervakning av en hydroponisk odlingsmiljö.
 
+## Grupp 4
+- Mahdi Ahmadi
+- Ossian Petermann
+- Pattaravarat Dahl
+
 ## Projektmål
 Prototypen ska kunna:
 - mäta lufttemperatur inne i odlingsmiljön,
