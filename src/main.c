@@ -19,9 +19,9 @@ void app_main(void)
     float humidity = 62.5;
     char lcd_humidity[32];
 
-    snprintf(lcd_temp, sizeof(lcd_temp), "T:%.1fC In %.1f", temp_out, temp_in);
+    snprintf(lcd_temp, sizeof(lcd_temp), "T:%.1f In:%.1f", temp_out, temp_in);
 
-    snprintf(lcd_humidity, sizeof(lcd_humidity), "WT:%.1f H: %f.1",  temp_w, humidity);
+    snprintf(lcd_humidity, sizeof(lcd_humidity), "WT:%.1f H:%.1f",  temp_w, humidity);
 
     LCD(0, 0, lcd_temp);
     
