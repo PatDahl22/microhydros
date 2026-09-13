@@ -3,13 +3,49 @@
 #include "freertos/task.h"
 #include "ds18b20_sensor.h"
 #include "esp_log.h"
+#include "nvs_flash.h"
+#include "esp_err.h"
+#include "wifi_manager.h"
+#include "mqtt_manager.h"
 
 static const char *TAG = "MAIN";
 #define WATER_TEMP_GPIO 4
 
 void app_main(void)
 {
+    // Vänta lite så Serial Monitor hinner ansluta
+    vTaskDelay(pdMS_TO_TICKS(3000));
 
+    printf("MicroHydros boot OK\n");
+    fflush(stdout);
+
+    // ------------------------------------------------
+    // Initialize NVS
+    // ESP-IDF Wi-Fi behöver NVS innan Wi-Fi startas.
+    // ------------------------------------------------
+    esp_err_t ret = nvs_flash_init();
+
+    // Om NVS-partitionen är gammal/full: radera och initiera på nytt.
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES ||
+        ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
+    {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        ret = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(ret);
+
+    printf("NVS initialized OK\n");
+    fflush(stdout);
+
+    // ------------------------------------------------
+    // Start Wi-Fi och MQTT
+    // ------------------------------------------------
+    wifi_init_sta();
+    mqtt_start();
+
+    // ------------------------------------------------
+    // Initiera DS18B20-sensorerna
+    // ------------------------------------------------
     if (ds18b20_sensor_init(WATER_TEMP_GPIO) != ESP_OK) {
         ESP_LOGE(TAG, "Sensorinit misslyckades");
     }
@@ -17,9 +53,12 @@ void app_main(void)
     while (1) {
         float temps[2];
         if (ds18b20_sensor_read_all(temps, 2) == ESP_OK) {
-            ESP_LOGI(TAG, "Sensor = Lufttemperatur (adress 8F0B2576714BFC28): %.2f C", temps[0]);
-            ESP_LOGI(TAG, "Sensor = Vattentemperatur (adress 780B25764C430E28): %.2f C", temps[1]);
+            ESP_LOGI(TAG, "Sensor 0 (adress 8F0B2576714BFC28): %.2f C", temps[0]);
+            ESP_LOGI(TAG, "Sensor 1 (adress 780B25764C430E28): %.2f C", temps[1]);
         }
+
+        mqtt_publish_test();
+
         vTaskDelay(pdMS_TO_TICKS(2000));
     }
 }
