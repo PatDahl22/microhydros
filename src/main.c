@@ -50,11 +50,13 @@ void app_main(void)
         ESP_LOGE(TAG, "Sensorinit misslyckades");
     }
 
+    //Sensor Vattentempratur =(adress 8F0B2576714BFC28)
+    //Sensor Lufttemperatur =(adress 780B25764C430E28)
     while (1) {
         float temps[2];
         if (ds18b20_sensor_read_all(temps, 2) == ESP_OK) {
-            ESP_LOGI(TAG, "Sensor 0 (adress 8F0B2576714BFC28): %.2f C", temps[0]);
-            ESP_LOGI(TAG, "Sensor 1 (adress 780B25764C430E28): %.2f C", temps[1]);
+            ESP_LOGI(TAG, "Sensor 0 = Vattentempratur: %.2f C", temps[0]);
+            ESP_LOGI(TAG, "Sensor 1 = Lufttemperatur: %.2f C", temps[1]);
         }
 
         mqtt_publish_test();
