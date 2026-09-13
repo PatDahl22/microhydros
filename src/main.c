@@ -3,63 +3,51 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
-#include "LCD.h"
+#include "nvs_flash.h"
+#include "esp_err.h"
 
+#include "wifi_manager.h"
+#include "mqtt_manager.h"
 
 void app_main(void)
 {
-    // Give serial monitor time to connect.
+    // Vänta lite så Serial Monitor hinner ansluta
     vTaskDelay(pdMS_TO_TICKS(3000));
 
-    printf("\nMicroHydros LCD test\n");
+    printf("MicroHydros boot OK\n");
+    fflush(stdout);
 
+    // -------------------------------------------------
+    // Initialize NVS
+    // ESP-IDF Wi-Fi behöver NVS innan Wi-Fi startas.
+    // -------------------------------------------------
+    esp_err_t ret = nvs_flash_init();
 
-#if CONFIG_IDF_TARGET_ESP32C6
-
-    printf("Board: ESP32-C6\n");
-
-#elif CONFIG_IDF_TARGET_ESP32S3
-
-    printf("Board: ESP32-S3\n");
-
-#endif
-
-
-    // Initialize LCD.
-    esp_err_t err = LCD_init();
-
-    if (err != ESP_OK)
+    // Om NVS-partitionen är gammal/full:
+    // radera den och initiera på nytt.
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES ||
+        ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
     {
-        printf(
-            "LCD initialization failed: %s\n",
-            esp_err_to_name(err)
-        );
-
-        return;
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        ret = nvs_flash_init();
     }
 
+    ESP_ERROR_CHECK(ret);
 
-    // Show test text.
-    LCD_clear();
+    printf("NVS initialized OK\n");
+    fflush(stdout);
 
-    LCD_print_at(
-        0,
-        0,
-        "MICROHYDROS"
-    );
+    // -------------------------------------------------
+    // Start Wi-Fi
+    // -------------------------------------------------
+    wifi_init_sta();
 
-    LCD_print_at(
-        0,
-        1,
-        "LCD WORKS :)"
-    );
-
-
-    printf("LCD text sent\n");
-
+    mqtt_start();
 
     while (1)
     {
+        mqtt_publish_test();
+
         vTaskDelay(pdMS_TO_TICKS(5000));
     }
 }

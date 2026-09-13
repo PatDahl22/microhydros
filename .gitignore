@@ -10,5 +10,5 @@ compile_commands.json
 # Local secrets
 src/secrets.h
 
-# ESP-IDF generated configuration for local C6 test environment
+# Local ESP32-C6 generated config
 sdkconfig.esp32-c6-test
