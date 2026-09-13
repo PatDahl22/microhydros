@@ -6,3 +6,9 @@
 .vscode/launch.json
 .vscode/ipch
 compile_commands.json
+
+# Local secrets
+src/secrets.h
+
+# ESP-IDF generated configuration for local C6 test environment
+sdkconfig.esp32-c6-test
