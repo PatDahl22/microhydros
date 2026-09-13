@@ -1,82 +1,293 @@
-#include <stdio.h>
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "driver/i2c_master.h"
-#include "esp_log.h"
-#include "esp_rom_sys.h"
-
 #include "LCD.h"
 
+#include <stdio.h>
+#include <stdbool.h>
+#include <stdint.h>
+
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+
+#include "driver/i2c_master.h"
+#include "esp_err.h"
+#include "rom/ets_sys.h"
 
 
+// ----------------------------------------------------
+// PCF8574 -> LCD1602 mapping
+//
+// Confirmed mapping from MAP 01:
+//
+// P0 = RS
+// P1 = RW
+// P2 = Enable
+// P3 = Backlight
+// P4 = D4
+// P5 = D5
+// P6 = D6
+// P7 = D7
+// ----------------------------------------------------
 
-static const char *TAG = "LCD";
+#define LCD_RS 0x01
+#define LCD_RW 0x02
+#define LCD_EN 0x04
+#define LCD_BL 0x08
 
-static i2c_master_bus_handle_t bus_handle;
-static i2c_master_dev_handle_t lcd_handle;
+#define LCD_D4 0x10
+#define LCD_D5 0x20
+#define LCD_D6 0x40
+#define LCD_D7 0x80
 
-/* PCF8574 pins */
-#define LCD_RS  0x01
-#define LCD_EN  0x04
-#define LCD_BL  0x08
 
-static void lcd_write_byte(uint8_t data)
+static i2c_master_dev_handle_t lcd_device = NULL;
+
+
+// ----------------------------------------------------
+// Write one byte to PCF8574
+// ----------------------------------------------------
+
+static bool pcf8574_write(uint8_t value)
 {
-    i2c_master_transmit(lcd_handle, &data, 1, -1);
+    esp_err_t err = i2c_master_transmit(
+        lcd_device,
+        &value,
+        1,
+        1000
+    );
+
+    if (err != ESP_OK)
+    {
+        printf(
+            "LCD I2C error: %s\n",
+            esp_err_to_name(err)
+        );
+
+        return false;
+    }
+
+    return true;
 }
 
-static void lcd_pulse_enable(uint8_t data)
+
+// ----------------------------------------------------
+// Convert LCD nibble to PCF8574 bits
+// ----------------------------------------------------
+
+static uint8_t lcd_map_nibble(uint8_t nibble)
 {
-    lcd_write_byte(data | LCD_EN);
-    esp_rom_delay_us(1);
-    lcd_write_byte(data & ~LCD_EN);
-    esp_rom_delay_us(50);
+    uint8_t value = LCD_BL;
+
+    if (nibble & 0x01)
+    {
+        value |= LCD_D4;
+    }
+
+    if (nibble & 0x02)
+    {
+        value |= LCD_D5;
+    }
+
+    if (nibble & 0x04)
+    {
+        value |= LCD_D6;
+    }
+
+    if (nibble & 0x08)
+    {
+        value |= LCD_D7;
+    }
+
+    return value;
 }
 
-static void lcd_write4(uint8_t nibble, uint8_t rs)
+
+// ----------------------------------------------------
+// Pulse Enable
+// ----------------------------------------------------
+
+static void lcd_pulse_enable(uint8_t value)
 {
-    uint8_t data = (nibble & 0xF0) | LCD_BL;
+    pcf8574_write(value | LCD_EN);
 
-    if (rs)
-        data |= LCD_RS;
+    ets_delay_us(10);
 
-    lcd_pulse_enable(data);
+    pcf8574_write(value & ~LCD_EN);
+
+    ets_delay_us(100);
 }
 
-static void lcd_send(uint8_t value, uint8_t rs)
+
+// ----------------------------------------------------
+// Send one 4-bit nibble
+// ----------------------------------------------------
+
+static void lcd_send_nibble(
+    uint8_t nibble,
+    bool data_mode
+)
 {
-    lcd_write4(value & 0xF0, rs);
-    lcd_write4((value << 4) & 0xF0, rs);
+    uint8_t value = lcd_map_nibble(nibble);
+
+    if (data_mode)
+    {
+        value |= LCD_RS;
+    }
+
+    lcd_pulse_enable(value);
 }
 
-static void lcd_command(uint8_t cmd)
+
+// ----------------------------------------------------
+// Send complete byte
+// ----------------------------------------------------
+
+static void lcd_send_byte(
+    uint8_t value,
+    bool data_mode
+)
 {
-    lcd_send(cmd, 0);
-    vTaskDelay(pdMS_TO_TICKS(2));
+    lcd_send_nibble(
+        value >> 4,
+        data_mode
+    );
+
+    lcd_send_nibble(
+        value & 0x0F,
+        data_mode
+    );
 }
 
-static void lcd_data(uint8_t data)
+
+// ----------------------------------------------------
+// Send LCD command
+// ----------------------------------------------------
+
+static void lcd_command(uint8_t command)
 {
-    lcd_send(data, 1);
+    lcd_send_byte(
+        command,
+        false
+    );
+
+    if (command == 0x01 || command == 0x02)
+    {
+        vTaskDelay(pdMS_TO_TICKS(3));
+    }
+    else
+    {
+        ets_delay_us(100);
+    }
 }
 
-static void lcd_init(void)
-{
-    vTaskDelay(pdMS_TO_TICKS(50));
 
-    // Initialize LCD in 4-bit mode
-    lcd_write4(0x30, 0);
+// ----------------------------------------------------
+// Send one character
+// ----------------------------------------------------
+
+static void lcd_write_char(char character)
+{
+    lcd_send_byte(
+        (uint8_t)character,
+        true
+    );
+}
+
+
+// ----------------------------------------------------
+// Initialize LCD
+// ----------------------------------------------------
+
+esp_err_t LCD_init(void)
+{
+    printf("LCD: starting initialization\n");
+
+    // ---------------------------------------------
+    // Create I2C bus
+    // ---------------------------------------------
+
+    i2c_master_bus_config_t bus_config = {
+        .clk_source = I2C_CLK_SRC_DEFAULT,
+        .i2c_port = -1,
+        .scl_io_num = I2C_SCL_GPIO,
+        .sda_io_num = I2C_SDA_GPIO,
+        .glitch_ignore_cnt = 7,
+        .flags.enable_internal_pullup = true,
+    };
+
+    i2c_master_bus_handle_t bus_handle = NULL;
+
+    esp_err_t err = i2c_new_master_bus(
+        &bus_config,
+        &bus_handle
+    );
+
+    if (err != ESP_OK)
+    {
+        printf(
+            "LCD: I2C bus init failed: %s\n",
+            esp_err_to_name(err)
+        );
+
+        return err;
+    }
+
+
+    // ---------------------------------------------
+    // Add PCF8574 device
+    // ---------------------------------------------
+
+    i2c_device_config_t device_config = {
+        .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+        .device_address = LCD_ADDR,
+        .scl_speed_hz = I2C_FREQ_HZ,
+    };
+
+    err = i2c_master_bus_add_device(
+        bus_handle,
+        &device_config,
+        &lcd_device
+    );
+
+    if (err != ESP_OK)
+    {
+        printf(
+            "LCD: device init failed: %s\n",
+            esp_err_to_name(err)
+        );
+
+        return err;
+    }
+
+
+    printf(
+        "LCD: PCF8574 ready at 0x%02X\n",
+        LCD_ADDR
+    );
+
+
+    // ---------------------------------------------
+    // HD44780 initialization
+    // ---------------------------------------------
+
+    vTaskDelay(pdMS_TO_TICKS(100));
+
+    // Backlight on
+    pcf8574_write(LCD_BL);
+
+    // Reset sequence
+    lcd_send_nibble(0x03, false);
+    vTaskDelay(pdMS_TO_TICKS(10));
+
+    lcd_send_nibble(0x03, false);
     vTaskDelay(pdMS_TO_TICKS(5));
 
-    lcd_write4(0x30, 0);
-    esp_rom_delay_us(150);
+    lcd_send_nibble(0x03, false);
+    vTaskDelay(pdMS_TO_TICKS(5));
 
-    lcd_write4(0x30, 0);
-    vTaskDelay(pdMS_TO_TICKS(1));
+    // Switch to 4-bit mode
+    lcd_send_nibble(0x02, false);
+    vTaskDelay(pdMS_TO_TICKS(5));
 
-    lcd_write4(0x20, 0);
-
-    // 4-bit, 2 lines, 5x8 font
+    // 4-bit mode, 2 lines, 5x8 font
     lcd_command(0x28);
 
     // Display off
@@ -85,79 +296,83 @@ static void lcd_init(void)
     // Clear display
     lcd_command(0x01);
 
-    // Entry mode
+    // Cursor moves right
     lcd_command(0x06);
 
-    // Display on, cursor off, blink off
+    // Display on, cursor off
     lcd_command(0x0C);
+
+    printf("LCD: initialization complete\n");
+
+    return ESP_OK;
 }
 
-static void lcd_set_cursor(uint8_t col, uint8_t row)
+
+// ----------------------------------------------------
+// Clear display
+// ----------------------------------------------------
+
+void LCD_clear(void)
+{
+    lcd_command(0x01);
+}
+
+
+// ----------------------------------------------------
+// Set cursor position
+//
+// col = 0-15
+// row = 0-1
+// ----------------------------------------------------
+
+void LCD_set_cursor(
+    uint8_t col,
+    uint8_t row
+)
 {
     uint8_t address;
 
     if (row == 0)
-        address = 0x00 + col;
+    {
+        address = 0x80 + col;
+    }
     else
-        address = 0x40 + col;
-
-    lcd_command(0x80 | address);
-}
-
-static void lcd_print(const char *str)
-{
-    while (*str)
-        lcd_data((uint8_t)*str++);
-}
-
-void LCD_init(void){
-        // Create I2C bus
-    i2c_master_bus_config_t bus_config = {
-        .i2c_port = I2C_NUM_0,
-        .sda_io_num = I2C_SDA_GPIO,
-        .scl_io_num = I2C_SCL_GPIO,
-        .clk_source = I2C_CLK_SRC_DEFAULT,
-        .glitch_ignore_cnt = 7,
-        .flags.enable_internal_pullup = true,
-    };
-
-    ESP_ERROR_CHECK(
-        i2c_new_master_bus(&bus_config, &bus_handle)
-    );
-
-    // Add LCD to bus
-    i2c_device_config_t lcd_config = {
-        .dev_addr_length = I2C_ADDR_BIT_LEN_7,
-        .device_address = LCD_ADDR,
-        .scl_speed_hz = I2C_FREQ_HZ,
-    };
-
-    ESP_ERROR_CHECK(
-        i2c_master_bus_add_device(
-            bus_handle,
-            &lcd_config,
-            &lcd_handle
-        )
-    );
-
-
-    ESP_LOGI(TAG, "Initializing LCD");
-
-    lcd_init();
-
-}
-
-void LCD(int col, int row, const char *line)
-{
-    
-    lcd_set_cursor(col, row);
-
-    for (int i = 0; i < 16; i++){
-        lcd_data(' ');
+    {
+        address = 0xC0 + col;
     }
 
-    lcd_set_cursor(col, row);
-    
-    lcd_print(line);
+    lcd_command(address);
+}
 
+
+// ----------------------------------------------------
+// Print string at current cursor position
+// ----------------------------------------------------
+
+void LCD_print(const char *text)
+{
+    while (*text)
+    {
+        lcd_write_char(*text);
+        text++;
+    }
+}
+
+
+// ----------------------------------------------------
+// Print string at selected position
+// ----------------------------------------------------
+
+void LCD_print_at(
+    uint8_t col,
+    uint8_t row,
+    const char *text
+)
+{
+    LCD_set_cursor(
+        col,
+        row
+    );
+
+    LCD_print(text);
 }
