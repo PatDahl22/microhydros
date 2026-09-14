@@ -59,7 +59,12 @@ esp_err_t ds18b20_sensor_read_all(float *temps_out, int max_count)
 
     int count = sensor_count < max_count ? sensor_count : max_count;
     for (int i = 0; i < count; i++) {
-        ESP_ERROR_CHECK(ds18b20_get_temperature(sensors[i], &temps_out[i]));
+
+        esp_err_t err = ds18b20_get_temperature(sensors[i], &temps_out[i]);
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "DS18B20 read failed: %s", esp_err_to_name(err));
+            continue;
+        }
     }
     return ESP_OK;
 }
