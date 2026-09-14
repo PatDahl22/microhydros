@@ -62,8 +62,9 @@ void app_main(void)
 
     while (1) {
         float temps[2];
-        float temporary1 = 15.66;
-        float temporary2 = 65.5;
+
+        float humidity = 00.00;
+        float temp_in = 00.00;
 
         char lcd_temp[32];
         char lcd_hum[32];
@@ -73,9 +74,10 @@ void app_main(void)
             ESP_LOGI(TAG, "Sensor 1 = Lufttemperatur: %.2f C", temps[1]);
         }
 
-        snprintf(lcd_temp, sizeof(lcd_temp), "T:%.1f IN:%.1f", temps[1], temporary1);
-        snprintf(lcd_hum, sizeof(lcd_hum), "H:%.1f W:%.1f", temporary2, temps[0]);
-
+        snprintf(lcd_temp, sizeof(lcd_temp), "T:%.1f IN:%.1f", temps[1], temp_in);
+        snprintf(lcd_hum, sizeof(lcd_hum), "H:%.1f W:%.1f", humidity, temps[0]);
+        
+        LCD_clear();
         LCD_print_at(0,0,lcd_temp);
         LCD_print_at(0,1,lcd_hum);
 
