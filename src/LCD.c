@@ -39,7 +39,7 @@
 
 
 static i2c_master_dev_handle_t lcd_device = NULL;
-
+static i2c_master_bus_handle_t lcd_bus_handle = NULL;
 
 // ----------------------------------------------------
 // Write one byte to PCF8574
@@ -213,11 +213,10 @@ esp_err_t LCD_init(void)
         .flags.enable_internal_pullup = true,
     };
 
-    i2c_master_bus_handle_t bus_handle = NULL;
 
     esp_err_t err = i2c_new_master_bus(
         &bus_config,
-        &bus_handle
+        &lcd_bus_handle
     );
 
     if (err != ESP_OK)
@@ -242,7 +241,7 @@ esp_err_t LCD_init(void)
     };
 
     err = i2c_master_bus_add_device(
-        bus_handle,
+        lcd_bus_handle,
         &device_config,
         &lcd_device
     );
@@ -375,4 +374,9 @@ void LCD_print_at(
     );
 
     LCD_print(text);
+}
+
+i2c_master_bus_handle_t LCD_get_i2c_bus(void)
+{
+    return lcd_bus_handle;
 }
