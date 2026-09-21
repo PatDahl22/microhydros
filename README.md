@@ -7,7 +7,7 @@ IoT- och embeddedprototyp för övervakning av en hydroponisk odlingsmiljö.
 ###### SDA - GPIO 8 (6 på ESP32-C6) <br>
 ###### SCL - GPIO 9 (7 på ESP32-C6)
 
-##### DS18B20 temperatur sensor:
+##### DS18B20 temperatur sensor (2 på samma ingångar):
 ###### GPIO 4
 
 ##### SHT31D Temp/Humiditet sensor:
