@@ -7,8 +7,12 @@
 void mqtt_start(void);
 
 /**
- * @brief Publicerar ett testmeddelande till MicroHydros MQTT-topic.
+ * @brief Publicerar aktuella mätvärden till MicroHydros MQTT-topic.
  */
-void mqtt_publish_test(void);
+void mqtt_publish_measurements(
+    float inside_temp,
+    float inside_humidity,
+    float outside_temp,
+    float water_temp);
 
 #endif
