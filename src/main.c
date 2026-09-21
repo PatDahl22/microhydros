@@ -95,9 +95,11 @@ void app_main(void)
         snprintf(lcd_temp, sizeof(lcd_temp), "T:%.1f IN:%.1f", temps[1], temp_in);
         snprintf(lcd_hum, sizeof(lcd_hum), "H:%.1f W:%.1f", humidity, temps[0]);
         
-        LCD_clear();
-        LCD_print_at(0,0,lcd_temp);
-        LCD_print_at(0,1,lcd_hum);
+        //LCD_clear();
+        //LCD_print_at(0,0,lcd_temp);
+        //LCD_print_at(0,1,lcd_hum);
+
+        LCD_print_all(lcd_temp, lcd_hum);
 
         mqtt_publish_test();
 

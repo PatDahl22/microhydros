@@ -44,6 +44,8 @@ esp_err_t LCD_init(void);
 
 void LCD_clear(void);
 
+void LCD_print_all(const char *line1, const char *line2);
+
 void LCD_set_cursor(
     uint8_t col,
     uint8_t row
