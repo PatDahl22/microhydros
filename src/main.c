@@ -10,26 +10,23 @@
 #include "sht31d_sensor.h"
 #include "LCD.h"
 
-
 #define WATER_TEMP_GPIO 4
 #define SHT31D_SDA_GPIO 15
 #define SHT31D_SCL_GPIO 16
-
-
 
 static const char *TAG = "MAIN";
 
 void app_main(void)
 {
-    vTaskDelay(pdMS_TO_TICKS(1000));   
+    vTaskDelay(pdMS_TO_TICKS(1000));
 
-    //test för sht31d sesnor isf om kopplingen är fel
-    if (sht31d_sensor_init(SHT31D_SDA_GPIO, SHT31D_SCL_GPIO)!= ESP_OK) 
+    // test för sht31d sesnor isf om kopplingen är fel
+    if (sht31d_sensor_init(SHT31D_SDA_GPIO, SHT31D_SCL_GPIO) != ESP_OK)
     {
         ESP_LOGE(TAG, "SHT31-D sensor lyckades inte koppla");
     }
 
-    //Initialise the LCD display
+    // Initialise the LCD display
 
     LCD_init();
 
@@ -65,16 +62,16 @@ void app_main(void)
     // ------------------------------------------------
     // Initiera DS18B20-sensorerna
     // ------------------------------------------------
-    if (ds18b20_sensor_init(WATER_TEMP_GPIO) != ESP_OK) {
+    if (ds18b20_sensor_init(WATER_TEMP_GPIO) != ESP_OK)
+    {
         ESP_LOGE(TAG, "Koppling misslyckades");
     }
 
-    //Sensor Vattentempratur =(adress 8F0B2576714BFC28)
-    //Sensor Lufttemperatur =(adress 780B25764C430E28)
+    // Sensor Vattentempratur =(adress 8F0B2576714BFC28)
+    // Sensor Lufttemperatur =(adress 780B25764C430E28)
 
-    
-
-    while (1) {
+    while (1)
+    {
 
         float temps[2];
         float humidity = 0.0f;
@@ -83,23 +80,29 @@ void app_main(void)
         char lcd_temp[32];
         char lcd_hum[32];
 
-        if (ds18b20_sensor_read_all(temps, 2) == ESP_OK) {
+        if (ds18b20_sensor_read_all(temps, 2) == ESP_OK)
+        {
             ESP_LOGI(TAG, "Sensor 0 = Vattentempratur: %.2f C", temps[0]);
             ESP_LOGI(TAG, "Sensor 1 = Lufttemperatur: %.2f C", temps[1]);
         }
 
-        if (sht31d_sensor_read(&temp_in, &humidity) == ESP_OK) {
+        if (sht31d_sensor_read(&temp_in, &humidity) == ESP_OK)
+        {
             ESP_LOGI(TAG, "SHT31-D: Innetemp: %.2f C, Fuktighet: %.2f %%", temp_in, humidity);
         }
-        
+
         snprintf(lcd_temp, sizeof(lcd_temp), "T:%.1f IN:%.1f", temps[1], temp_in);
         snprintf(lcd_hum, sizeof(lcd_hum), "H:%.1f W:%.1f", humidity, temps[0]);
-        
-        LCD_clear();
-        LCD_print_at(0,0,lcd_temp);
-        LCD_print_at(0,1,lcd_hum);
 
-        mqtt_publish_test();
+        LCD_clear();
+        LCD_print_at(0, 0, lcd_temp);
+        LCD_print_at(0, 1, lcd_hum);
+
+        mqtt_publish_measurements(
+            temp_in,
+            humidity,
+            temps[1],
+            temps[0]);
 
         vTaskDelay(pdMS_TO_TICKS(2000));
     }
