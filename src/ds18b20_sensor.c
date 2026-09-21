@@ -20,7 +20,8 @@ esp_err_t ds18b20_sensor_init(int gpio_num)
     };
 
     esp_err_t err = onewire_new_bus_rmt(&bus_config, &rmt_config, &bus);
-    if (err != ESP_OK) {
+    if (err != ESP_OK)
+    {
         ESP_LOGE(TAG, "Kunde inte skapa 1-Wire-bus: %s", esp_err_to_name(err));
         return err;
     }
@@ -32,14 +33,18 @@ esp_err_t ds18b20_sensor_init(int gpio_num)
     ESP_ERROR_CHECK(onewire_new_device_iter(bus, &iter));
     ESP_LOGI(TAG, "Söker efter DS18B20-enheter...");
 
-    do {
+    do
+    {
         search_result = onewire_device_iter_get_next(iter, &next_device);
-        if (search_result == ESP_OK) {
+        if (search_result == ESP_OK)
+        {
             ds18b20_config_t ds_cfg = {};
-            if (ds18b20_new_device_from_enumeration(&next_device, &ds_cfg, &sensors[sensor_count]) == ESP_OK) {
+            if (ds18b20_new_device_from_enumeration(&next_device, &ds_cfg, &sensors[sensor_count]) == ESP_OK)
+            {
                 ESP_LOGI(TAG, "Hittade DS18B20[%d], adress: %016llX", sensor_count, next_device.address);
                 sensor_count++;
-                if (sensor_count >= MAX_DS18B20) break;
+                if (sensor_count >= MAX_DS18B20)
+                    break;
             }
         }
     } while (search_result != ESP_ERR_NOT_FOUND);
@@ -52,16 +57,20 @@ esp_err_t ds18b20_sensor_init(int gpio_num)
 
 esp_err_t ds18b20_sensor_read_all(float *temps_out, int max_count)
 {
-    if (sensor_count == 0) return ESP_ERR_INVALID_STATE;
+    if (sensor_count == 0)
+        return ESP_ERR_INVALID_STATE;
 
     esp_err_t err = ds18b20_trigger_temperature_conversion_for_all(bus);
-    if (err != ESP_OK) return err;
+    if (err != ESP_OK)
+        return err;
 
     int count = sensor_count < max_count ? sensor_count : max_count;
-    for (int i = 0; i < count; i++) {
+    for (int i = 0; i < count; i++)
+    {
 
         esp_err_t err = ds18b20_get_temperature(sensors[i], &temps_out[i]);
-        if (err != ESP_OK) {
+        if (err != ESP_OK)
+        {
             ESP_LOGW(TAG, "DS18B20 read failed: %s", esp_err_to_name(err));
             continue;
         }
