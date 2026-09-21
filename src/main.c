@@ -9,12 +9,24 @@
 #include "mqtt_manager.h"
 #include "sht31d_sensor.h"
 #include "LCD.h"
+#include <stdbool.h>
+#include <math.h>
 
 #define WATER_TEMP_GPIO 4
 #define SHT31D_SDA_GPIO 15
 #define SHT31D_SCL_GPIO 16
 
 static const char *TAG = "MAIN";
+
+static bool is_valid_temperature(float temp)
+{
+    return temp >= -40.0f && temp <= 85.0f;
+}
+
+static bool is_valid_humidity(float humidity)
+{
+    return humidity >= 0.0f && humidity <= 100.0f;
+}
 
 void app_main(void)
 {
@@ -73,27 +85,67 @@ void app_main(void)
     while (1)
     {
 
-        float temps[2];
-        float humidity = 0.0f;
-        float temp_in = 0.0f;
+        float temps[2] = {NAN, NAN};
+        float humidity = NAN;
+        float temp_in = NAN;
+
+        bool ds18b20_ok = false;
+        bool sht31d_ok = false;
 
         char lcd_temp[32];
         char lcd_hum[32];
 
         if (ds18b20_sensor_read_all(temps, 2) == ESP_OK)
         {
-            ESP_LOGI(TAG, "Sensor 0 = Vattentempratur: %.2f C", temps[0]);
-            ESP_LOGI(TAG, "Sensor 1 = Lufttemperatur: %.2f C", temps[1]);
+            if (is_valid_temperature(temps[0]) &&
+                is_valid_temperature(temps[1]))
+            {
+                ds18b20_ok = true;
+
+                ESP_LOGI(TAG, "Sensor 0 = Vattentemperatur: %.2f C", temps[0]);
+                ESP_LOGI(TAG, "Sensor 1 = Lufttemperatur: %.2f C", temps[1]);
+            }
+            else
+            {
+                ESP_LOGW(TAG, "DS18B20 returned unreasonable temperature");
+            }
+        }
+        else
+        {
+            ESP_LOGW(TAG, "DS18B20 returned unreasonable temperature");
+
+            temps[0] = NAN;
+            temps[1] = NAN;
         }
 
         if (sht31d_sensor_read(&temp_in, &humidity) == ESP_OK)
         {
-            ESP_LOGI(TAG, "SHT31-D: Innetemp: %.2f C, Fuktighet: %.2f %%", temp_in, humidity);
+            if (is_valid_temperature(temp_in) &&
+                is_valid_humidity(humidity))
+            {
+                sht31d_ok = true;
+
+                ESP_LOGI(TAG,
+                         "SHT31-D: Innetemp: %.2f C, Fuktighet: %.2f %%",
+                         temp_in,
+                         humidity);
+            }
+            else
+            {
+                ESP_LOGW(TAG, "SHT31-D returned unreasonable values");
+            }
+        }
+        else
+        {
+            ESP_LOGW(TAG, "SHT31-D returned unreasonable values");
+
+            temp_in = NAN;
+            humidity = NAN;
         }
 
         snprintf(lcd_temp, sizeof(lcd_temp), "T:%.1f IN:%.1f", temps[1], temp_in);
         snprintf(lcd_hum, sizeof(lcd_hum), "H:%.1f W:%.1f", humidity, temps[0]);
-        
+
         LCD_print_all(lcd_temp, lcd_hum);
 
         mqtt_publish_measurements(
