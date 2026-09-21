@@ -3,6 +3,7 @@
 #include "esp_log.h"
 #include "mqtt_client.h"
 #include <stdio.h>
+#include <math.h>
 
 static const char *TAG = "MQTT";
 
@@ -81,18 +82,50 @@ void mqtt_publish_measurements(
 
     char message[256];
 
+    bool has_error =
+        isnan(inside_temp) ||
+        isnan(inside_humidity) ||
+        isnan(outside_temp) ||
+        isnan(water_temp);
+
+    char inside_temp_str[16];
+    char inside_humidity_str[16];
+    char outside_temp_str[16];
+    char water_temp_str[16];
+
+    if (isnan(inside_temp))
+        snprintf(inside_temp_str, sizeof(inside_temp_str), "null");
+    else
+        snprintf(inside_temp_str, sizeof(inside_temp_str), "%.2f", inside_temp);
+
+    if (isnan(inside_humidity))
+        snprintf(inside_humidity_str, sizeof(inside_humidity_str), "null");
+    else
+        snprintf(inside_humidity_str, sizeof(inside_humidity_str), "%.2f", inside_humidity);
+
+    if (isnan(outside_temp))
+        snprintf(outside_temp_str, sizeof(outside_temp_str), "null");
+    else
+        snprintf(outside_temp_str, sizeof(outside_temp_str), "%.2f", outside_temp);
+
+    if (isnan(water_temp))
+        snprintf(water_temp_str, sizeof(water_temp_str), "null");
+    else
+        snprintf(water_temp_str, sizeof(water_temp_str), "%.2f", water_temp);
+
     snprintf(
         message,
         sizeof(message),
-        "{\"inside_temp\":%.2f,"
-        "\"inside_humidity\":%.2f,"
-        "\"outside_temp\":%.2f,"
-        "\"water_temp\":%.2f,"
-        "\"status\":\"ok\"}",
-        inside_temp,
-        inside_humidity,
-        outside_temp,
-        water_temp);
+        "{\"inside_temp\":%s,"
+        "\"inside_humidity\":%s,"
+        "\"outside_temp\":%s,"
+        "\"water_temp\":%s,"
+        "\"status\":\"%s\"}",
+        inside_temp_str,
+        inside_humidity_str,
+        outside_temp_str,
+        water_temp_str,
+        has_error ? "sensor_error" : "ok");
 
     int msg_id = esp_mqtt_client_publish(
         mqtt_client,
