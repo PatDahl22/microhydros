@@ -7,6 +7,9 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
+#include "freertos/semphr.h"
+static SemaphoreHandle_t lcd_mutex = NULL;
+
 #include "driver/i2c_master.h"
 #include "esp_err.h"
 #include "rom/ets_sys.h"
@@ -262,6 +265,7 @@ esp_err_t LCD_init(void)
         LCD_ADDR
     );
 
+    lcd_mutex = xSemaphoreCreateMutex();
 
     // ---------------------------------------------
     // HD44780 initialization
@@ -313,8 +317,17 @@ esp_err_t LCD_init(void)
 
 void LCD_clear(void)
 {
+    if (lcd_mutex == NULL){
+        return;
+    }
+    xSemaphoreTake(lcd_mutex, portMAX_DELAY);
+
     lcd_command(0x01);
+
+    xSemaphoreGive(lcd_mutex);
 }
+
+
 
 
 // ----------------------------------------------------
@@ -329,6 +342,10 @@ void LCD_set_cursor(
     uint8_t row
 )
 {
+    if (col >= 16 || row >=2){
+        return;
+    }
+
     uint8_t address;
 
     if (row == 0)
@@ -372,11 +389,40 @@ void LCD_print_at(
         col,
         row
     );
-
+    
     LCD_print(text);
 }
 
 i2c_master_bus_handle_t LCD_get_i2c_bus(void)
 {
     return lcd_bus_handle;
+}
+
+void lcd_clear_small(void){
+    LCD_set_cursor(0,0);
+    for (int i = 0; i<16; i++){
+        lcd_write_char(' ');
+    }
+    LCD_set_cursor(0,1);
+    for (int i = 0; i < 16; i++){
+        lcd_write_char(' ');
+    }
+
+    LCD_set_cursor(0,0);
+}
+
+void LCD_print_all(const char *line1, const char *line2){
+    if (lcd_mutex == NULL){
+        return;
+    }
+
+    xSemaphoreTake(lcd_mutex, portMAX_DELAY);
+
+    lcd_clear_small();
+
+    LCD_print_at(0,0,line1);
+    LCD_print_at(0,1,line2);
+
+    xSemaphoreGive(lcd_mutex);
+
 }
