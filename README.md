@@ -2,6 +2,19 @@
 
 IoT- och embeddedprototyp för övervakning av en hydroponisk odlingsmiljö.
 
+## ESP32-S3 kopplingar:
+##### LCD:
+SDA - GPIO 8 (6 på ESP32-C6)
+SCL - GPIO 9 (7 på ESP32-C6)
+
+##### DS18B20 temperatur sensor:
+GPIO 4
+
+##### SHT31D Temp/Humiditet sensor:
+SDA - GPIO 15
+SCL - GPIO 16
+
+
 ## Grupp 4
 - Mahdi Ahmadi
 - Ossian Petermann
